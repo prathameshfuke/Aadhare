@@ -30,6 +30,16 @@ from src.visualization import (
 
 OUTPUT_DIR = Path(__file__).parent.parent / "outputs"
 FIGURES_DIR = OUTPUT_DIR / "figures"
+SRC_DIR = Path(__file__).parent
+
+def get_code_content(filename: str) -> str:
+    """Read specific source file content for report."""
+    try:
+        path = SRC_DIR / filename
+        with open(path, 'r') as f:
+            return f.read()
+    except Exception as e:
+        return f"Error reading {filename}: {str(e)}"
 
 def main():
     print("=" * 60)
@@ -65,6 +75,12 @@ def main():
     print(f"  Enrolment after cleaning: {len(enrolment):,} records")
     print(f"  Demographic after cleaning: {len(demographic):,} records")
     print(f"  Biometric after cleaning: {len(biometric):,} records")
+    
+    # Verify cleaning
+    print("  Verifying state names...")
+    clean_states = sorted(enrolment['state'].unique())
+    print(f"  Unique states: {len(clean_states)}")
+    print(f"  Sample states: {clean_states[:5]}")
     
     # Run analyses
     print("\n[4/7] Running analyses...")
@@ -226,11 +242,20 @@ def main():
         hotspots, coldspots
     )
     
+    # Get source code
+    source_code = {
+        'data_loader': get_code_content('data_loader.py'),
+        'preprocessing': get_code_content('preprocessing.py'),
+        'analysis': get_code_content('analysis.py'),
+        'visualization': get_code_content('visualization.py')
+    }
+    
     # Generate report
     print("\n[7/7] Generating PDF report...")
     report_path = generate_pdf_report(
         insights, figures, quality_reports,
         enrolment, demographic, biometric,
+        source_code,
         OUTPUT_DIR / "report.pdf"
     )
     print(f"  Report saved to: {report_path}")
@@ -239,9 +264,7 @@ def main():
     print("ANALYSIS COMPLETE")
     print("=" * 60)
     print(f"Finished at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
-    print(f"\nOutputs:")
-    print(f"  - Figures: {FIGURES_DIR}")
-    print(f"  - Report: {report_path}")
+    print(f"Outputs saved to: {OUTPUT_DIR}")
     
     return insights
 
@@ -261,16 +284,16 @@ def compile_insights(enrolment, demographic, biometric,
     top_states_enrol = state_enrol.head(5)['state'].tolist()
     bottom_states_enrol = state_enrol.tail(5)['state'].tolist()
     
-    top_states_demo = state_demo.head(5)['state'].tolist()
-    top_states_bio = state_bio.head(5)['state'].tolist()
-    
     enrol_anomaly_count = enrol_anomalies['is_anomaly'].sum()
-    demo_anomaly_count = demo_anomalies['is_anomaly'].sum()
+    enrol_anomaly_days = enrol_anomalies[enrol_anomalies['is_anomaly']]['date'].astype(str).tolist()
     
-    age_majority = age_dist.loc[age_dist['percentage'].idxmax()]
+    # determine dominant age group correctly
+    max_idx = age_dist['percentage'].idxmax()
+    dominant_age_group = age_dist.iloc[max_idx]['age_group']
+    dominant_percentage = age_dist.iloc[max_idx]['percentage']
     
-    best_transition_states = transitions.nlargest(3, 'transition_ratio')['state'].tolist()
-    worst_transition_states = transitions.nsmallest(3, 'transition_ratio')['state'].tolist()
+    best_transition_states = transitions.head(3)['state'].tolist()
+    worst_transition_states = transitions.tail(3)['state'].tolist()
     
     insights = {
         'summary': {
@@ -284,54 +307,44 @@ def compile_insights(enrolment, demographic, biometric,
         'geographic': {
             'top_enrol_states': top_states_enrol,
             'bottom_enrol_states': bottom_states_enrol,
-            'top_demo_states': top_states_demo,
-            'top_bio_states': top_states_bio,
-            'hotspots': hotspots['state'].tolist() if not hotspots.empty else [],
-            'coldspots': coldspots['state'].tolist() if not coldspots.empty else [],
+            'hotspots': hotspots['state'].tolist()[:5] if not hotspots.empty else [],
+            'coldspots': coldspots['state'].tolist()[:5] if not coldspots.empty else [],
         },
         'demographic': {
             'age_distribution': age_dist.to_dict('records'),
-            'dominant_age_group': age_majority['age_group'],
-            'dominant_percentage': age_majority['percentage'],
-        },
-        'temporal': {
-            'enrol_growth': enrol_growth,
-            'demo_growth': demo_growth,
-            'bio_growth': bio_growth,
+            'dominant_age_group': dominant_age_group,
+            'dominant_percentage': dominant_percentage,
         },
         'anomalies': {
             'enrol_anomaly_count': enrol_anomaly_count,
-            'demo_anomaly_count': demo_anomaly_count,
-            'enrol_anomaly_days': enrol_anomalies[enrol_anomalies['is_anomaly']]['date'].tolist() if enrol_anomaly_count > 0 else [],
+            'enrol_anomaly_days': enrol_anomaly_days,
+            'demo_anomaly_count': demo_anomalies['is_anomaly'].sum(),
         },
         'transitions': {
             'best_states': best_transition_states,
             'worst_states': worst_transition_states,
         },
         'key_findings': [
-            f"Total of {total_enrolments:,} new Aadhaar enrolments processed during the analysis period.",
-            f"Demographic updates ({total_demo_updates:,}) outnumber enrolments by {total_demo_updates/total_enrolments:.1f}x, indicating active information maintenance.",
-            f"Top 5 states ({', '.join(top_states_enrol)}) account for majority of enrolments, showing geographic concentration.",
-            f"Adult population (18+) dominates enrolments at {age_dist[age_dist['age_group']=='18+ years']['percentage'].values[0]:.1f}%.",
-            f"{enrol_anomaly_count} anomalous days detected in enrolments, potentially indicating system stress or campaigns.",
-            f"Youth biometric transitions vary significantly by state, with {best_transition_states[0]} leading and {worst_transition_states[0]} lagging.",
-            f"Cold spots identified in {len(coldspots)} states requiring targeted intervention for Aadhaar coverage.",
+            f"Total of {total_enrolments:,} new Aadhaar enrolments processed.",
+            f"Demographic updates ({total_demo_updates:,}) outnumber enrolments by {total_demo_updates/total_enrolments:.1f}x.",
+            f"The {dominant_age_group} age group dominates enrolments, accounting for {dominant_percentage:.1f}% of the total.",
+            f"{enrol_anomaly_count} anomalous days detected in enrolments (e.g., {', '.join(enrol_anomaly_days[:3])}).",
+            f"Top 5 states account for {state_enrol.head(5)['percentage'].sum() if 'percentage' in state_enrol.columns else 'significant'}% of total activity.",
         ],
         'recommendations': [
-            "Focus enrollment drives on bottom-performing states to improve national coverage equity.",
-            "Investigate anomaly days to understand causes and optimize system capacity.",
-            "Implement targeted youth biometric update campaigns in low-transition states.",
-            "Consider mobile enrollment units for remote districts showing low activity.",
-            "Monitor demographic update patterns to predict system load and plan resources.",
-        ],
+            "Prioritize data cleaning in state names to resolve inconsistencies.",
+            "Investigate specific anomalous dates for system outages or mass enrollment drives.",
+            "Target low-transition states for youth biometric update campaigns.",
+            "Monitor update vs enrolment ratios to identify potential fraudulent update centers.",
+        ]
     }
     
     return insights
 
 def generate_pdf_report(insights, figures, quality_reports,
                         enrolment, demographic, biometric,
-                        output_path: Path):
-    """Generate comprehensive PDF report with all analysis results."""
+                        source_code, output_path: Path):
+    """Generate comprehensive PDF report with code snippets."""
     from fpdf import FPDF
     
     class PDF(FPDF):
@@ -339,7 +352,7 @@ def generate_pdf_report(insights, figures, quality_reports,
             self.set_font('Helvetica', 'B', 10)
             self.set_text_color(100, 100, 100)
             self.cell(0, 10, 'Aadhaar Data Analysis Report', 0, 1, 'C')
-            self.ln(2)
+            self.ln(5)
         
         def footer(self):
             self.set_y(-15)
@@ -370,7 +383,31 @@ def generate_pdf_report(insights, figures, quality_reports,
             self.set_text_color(0, 0, 0)
             self.multi_cell(0, 5, f"  {chr(149)} {text}")
             self.ln(1)
-    
+            
+        def code_block(self, code, label="Code"):
+            self.ln(2)
+            self.set_font('Courier', '', 8)
+            self.set_fill_color(245, 245, 245)
+            self.set_text_color(0, 0, 0)
+            
+            # Simple syntax highlighting simulation (just title)
+            self.set_font('Helvetica', 'I', 8)
+            self.cell(0, 5, f"Source: {label}", 0, 1, 'L')
+            
+            self.set_font('Courier', '', 7)
+            
+            # Split lines and handle pages
+            lines = code.split('\n')
+            # Limit lines to save space, just show key parts or first 20 lines
+            max_lines = 40
+            
+            content = "\n".join(lines[:max_lines])
+            if len(lines) > max_lines:
+                content += "\n... (truncated)"
+                
+            self.multi_cell(0, 4, content, fill=True, border=1)
+            self.ln(5)
+
     pdf = PDF()
     pdf.set_auto_page_break(auto=True, margin=15)
     
@@ -388,192 +425,81 @@ def generate_pdf_report(insights, figures, quality_reports,
     pdf.cell(0, 8, f"Data Period: {insights['summary']['date_range']}", 0, 1, 'C')
     pdf.cell(0, 8, f"Prepared: {datetime.now().strftime('%Y-%m-%d')}", 0, 1, 'C')
     
-    # Executive Summary
+    # Executive Summary with Corrected Finding
     pdf.add_page()
     pdf.chapter_title('Executive Summary')
     
-    summary = insights['summary']
-    pdf.body_text(f"""This report presents a comprehensive analysis of Aadhaar enrolment and update data, 
-covering {summary['unique_states']} states and {summary['unique_districts']} districts. 
-The analysis period spans from {summary['date_range']}, during which:
-
-- {summary['total_enrolments']:,} new Aadhaar enrolments were processed
-- {summary['total_demo_updates']:,} demographic updates were completed
-- {summary['total_bio_updates']:,} biometric updates were recorded
-
-Key findings reveal significant geographic disparities in Aadhaar activity, with the top 5 states 
-accounting for the majority of enrolments. The adult population (18+) dominates new enrolments, 
-while youth biometric transitions show concerning variation across states.""")
+    dom_group = insights['demographic']['dominant_age_group']
+    dom_pct = insights['demographic']['dominant_percentage']
     
+    pdf.body_text(f"""This report presents a comprehensive analysis of Aadhaar enrolment and update data, 
+processed with corrected cleaning logic to handle inconsistent state names. 
+The analysis period covers {insights['summary']['unique_states']} unique states/UTs.""")
+    
+    pdf.body_text(f"""Key corrected findings:
+- Total new enrolments: {insights['summary']['total_enrolments']:,}
+- Dominant demographic: {dom_group} ({dom_pct:.1f}%)
+- Total anomalous days: {insights['anomalies']['enrol_anomaly_count']}""")
+
     pdf.ln(5)
     pdf.section_title('Key Insights')
     for finding in insights['key_findings']:
         pdf.bullet_point(finding)
     
-    # Section 1: Problem Statement
+    # Section 1: Data Preprocessing & Code
     pdf.add_page()
-    pdf.chapter_title('Section 1: Problem Statement & Approach')
+    pdf.chapter_title('Section 1: Data Preprocessing')
+    pdf.body_text("To ensure data quality, we implemented rigorous cleaning steps:")
+    pdf.bullet_point("Parsed dates and validated 6-digit PIN codes")
+    pdf.bullet_point("Normalized state names (handled variations like 'West Bangal' -> 'West Bengal')")
+    pdf.bullet_point("Filtered out invalid rows (e.g., numeric state names like '100000')")
     
-    pdf.section_title('Problem 1: Geographic Disparity in Aadhaar Coverage')
-    pdf.body_text("""Which regions show concerning gaps in Aadhaar adoption, and what patterns 
-indicate underserved populations? This analysis aggregates enrolment data by state and district, 
-identifies cold spots, and correlates with demographic update patterns to find areas requiring intervention.""")
+    # Inject Preprocessing Code
+    pdf.section_title('Preprocessing Code Implementation')
+    pdf.code_block(source_code['preprocessing'], label="src/preprocessing.py")
     
-    pdf.section_title('Problem 2: Youth Biometric Transition Patterns')
-    pdf.body_text("""How effectively are children transitioning to adult biometrics, and are there 
-bottlenecks in the system? We analyze biometric update frequency for the 5-17 age bracket, 
-track temporal patterns as children approach adulthood, and identify states with low transition rates.""")
-    
-    pdf.section_title('Problem 3: Update Behavior Anomalies')
-    pdf.body_text("""What unusual patterns in demographic and biometric updates indicate system stress, 
-fraud potential, or policy gaps? Anomaly detection is applied to update frequencies, identifying 
-temporal spikes, geographic clustering, and unexpected demographic patterns.""")
-    
-    # Section 2: Dataset Description
+    # Section 2: Analysis & Code
     pdf.add_page()
-    pdf.chapter_title('Section 2: Dataset Description')
+    pdf.chapter_title('Section 2: Analysis Logic')
+    pdf.body_text("We performed temporal trends, anomaly detection, and geographic aggregation.")
     
-    pdf.section_title('Enrolment Dataset')
-    pdf.body_text(f"""Records: {len(enrolment):,}
-Columns: date, state, district, pincode, age_0_5, age_5_17, age_18_greater
-Contains new Aadhaar registrations categorized by age groups.""")
+    # Inject Analysis Code
+    pdf.section_title('Analysis Code Implementation')
+    pdf.code_block(source_code['analysis'], label="src/analysis.py")
     
-    pdf.section_title('Demographic Update Dataset')
-    pdf.body_text(f"""Records: {len(demographic):,}
-Columns: date, state, district, pincode, demo_age_5_17, demo_age_17_
-Tracks updates to name, address, date of birth, gender, and mobile number.""")
-    
-    pdf.section_title('Biometric Update Dataset')
-    pdf.body_text(f"""Records: {len(biometric):,}
-Columns: date, state, district, pincode, bio_age_5_17, bio_age_17_
-Contains fingerprint, iris, and face biometric updates.""")
-    
-    pdf.section_title('Data Quality Assessment')
-    for name, report in quality_reports.items():
-        pdf.body_text(f"{name.title()}: {report['total_rows']:,} rows, "
-                     f"{report['duplicates']} duplicates, {report['memory_mb']:.1f} MB")
-    
-    # Section 3: Methodology
+    # Section 3: Visualizations & Findings
     pdf.add_page()
-    pdf.chapter_title('Section 3: Methodology')
-    
-    pdf.section_title('Data Preprocessing')
-    pdf.body_text("""1. Date Parsing: Converted DD-MM-YYYY strings to datetime objects
-2. PIN Code Validation: Filtered to valid 6-digit numeric codes
-3. State Name Normalization: Standardized to consistent naming conventions
-4. Missing Value Treatment: Dropped records with null geography fields
-5. Feature Engineering: Extracted year, month, quarter, day_of_week; calculated totals""")
-    
-    pdf.section_title('Analysis Techniques')
-    pdf.body_text("""- Temporal Analysis: Time series aggregation, rolling averages, growth rates
-- Geographic Analysis: State and district-level aggregation, ranking, hotspot detection
-- Demographic Analysis: Age group distribution, transition ratio calculation
-- Anomaly Detection: IQR method for identifying outliers
-- Comparative Analysis: Cross-dataset metrics, ratio analysis""")
-    
-    pdf.section_title('Tools and Libraries')
-    pdf.body_text("""Python 3.14 with pandas, numpy, matplotlib, seaborn, scipy, scikit-learn, fpdf2""")
-    
-    # Section 4: Analysis & Visualizations
-    pdf.add_page()
-    pdf.chapter_title('Section 4: Analysis & Visualizations')
-    
-    # Temporal Analysis
-    pdf.section_title('A. Temporal Analysis')
-    pdf.body_text(f"""Average daily enrolments: {insights['temporal']['enrol_growth']['avg_daily']:,.0f}
-Maximum daily enrolments: {insights['temporal']['enrol_growth']['max_daily']:,.0f}
-Minimum daily enrolments: {insights['temporal']['enrol_growth']['min_daily']:,.0f}""")
-    
-    if '01_enrolment_trends' in figures:
-        pdf.image(str(figures['01_enrolment_trends']), x=10, w=190)
-        pdf.ln(5)
-    
-    # Geographic Analysis
-    pdf.add_page()
-    pdf.section_title('B. Geographic Analysis')
-    
-    top_states = insights['geographic']['top_enrol_states']
-    bottom_states = insights['geographic']['bottom_enrol_states']
-    pdf.body_text(f"""Top performing states: {', '.join(top_states)}
-Bottom performing states: {', '.join(bottom_states)}
-Hotspots (90th percentile): {', '.join(insights['geographic']['hotspots'][:5])}
-Coldspots (10th percentile): {', '.join(insights['geographic']['coldspots'][:5])}""")
-    
-    if '04_state_enrolments' in figures:
-        pdf.image(str(figures['04_state_enrolments']), x=10, w=190)
+    pdf.chapter_title('Section 3: Visualizations & Findings')
     
     # Demographic Analysis
-    pdf.add_page()
-    pdf.section_title('C. Demographic Analysis')
-    
-    for age_data in insights['demographic']['age_distribution']:
-        pdf.body_text(f"{age_data['age_group']}: {age_data['total']:,.0f} ({age_data['percentage']:.1f}%)")
-    
+    pdf.section_title('A. Demographic Analysis')
+    pdf.body_text(f"The {dom_group} group dominates enrolments, contradicting initial assumptions of adult dominance.")
     if '07_age_distribution' in figures:
-        pdf.image(str(figures['07_age_distribution']), x=10, w=190)
+        pdf.image(str(figures['07_age_distribution']), x=10, w=180)
     
-    # Anomaly Detection
+    pdf.ln(5)
+    
+    # Anomaly Analysis
     pdf.add_page()
-    pdf.section_title('D. Anomaly Detection')
-    pdf.body_text(f"""Enrolment anomalies detected: {insights['anomalies']['enrol_anomaly_count']} days
-Demographic update anomalies detected: {insights['anomalies']['demo_anomaly_count']} days
-
-Anomalous days indicate periods of unusually high or low activity that warrant investigation. 
-These could indicate system issues, special campaigns, or data quality concerns.""")
-    
+    pdf.section_title('B. Anomaly Analysis')
+    anomalies = insights['anomalies']['enrol_anomaly_days']
+    anom_text = ", ".join(anomalies[:5]) + ("..." if len(anomalies) > 5 else "")
+    pdf.body_text(f"Detected {len(anomalies)} anomalous days. Specific dates include: {anom_text}")
     if '10_enrol_anomalies' in figures:
-        pdf.image(str(figures['10_enrol_anomalies']), x=10, w=190)
-    
-    # Comparative Analysis
+        pdf.image(str(figures['10_enrol_anomalies']), x=10, w=180)
+        
+    # Geographic Analysis
     pdf.add_page()
-    pdf.section_title('E. Comparative Analysis')
-    pdf.body_text("""The comparative analysis reveals the relationship between new enrolments 
-and update activity across states. States with high enrolment but low update rates may indicate 
-populations with stable information, while high update rates could suggest demographic mobility 
-or data quality issues.""")
-    
-    if '12_state_comparison' in figures:
-        pdf.image(str(figures['12_state_comparison']), x=10, w=190)
-    
-    # Youth Transitions
+    pdf.section_title('C. Geographic Analysis')
+    pdf.body_text(f"Top states: {', '.join(insights['geographic']['top_enrol_states'])}")
+    if '04_state_enrolments' in figures:
+        pdf.image(str(figures['04_state_enrolments']), x=10, w=180)
+        
+    # Section 4: Visualization Code
     pdf.add_page()
-    pdf.section_title('F. Youth Biometric Transition Analysis')
-    pdf.body_text(f"""Best performing states for youth transitions: {', '.join(insights['transitions']['best_states'])}
-Underperforming states: {', '.join(insights['transitions']['worst_states'])}
+    pdf.chapter_title('Section 4: Visualization Code')
+    pdf.code_block(source_code['visualization'], label="src/visualization.py")
 
-States with low transition ratios may need targeted campaigns to ensure children 
-update their biometrics as they approach adulthood.""")
-    
-    if '13_transition_rates' in figures:
-        pdf.image(str(figures['13_transition_rates']), x=10, w=190)
-    
-    # Dashboard
-    pdf.add_page()
-    pdf.section_title('Summary Dashboard')
-    if '16_dashboard' in figures:
-        pdf.image(str(figures['16_dashboard']), x=5, w=200)
-    
-    # Section 5: Insights & Recommendations
-    pdf.add_page()
-    pdf.chapter_title('Section 5: Key Insights & Recommendations')
-    
-    pdf.section_title('Key Insights')
-    for i, finding in enumerate(insights['key_findings'], 1):
-        pdf.body_text(f"{i}. {finding}")
-    
-    pdf.ln(5)
-    pdf.section_title('Recommendations')
-    for i, rec in enumerate(insights['recommendations'], 1):
-        pdf.body_text(f"{i}. {rec}")
-    
-    pdf.ln(5)
-    pdf.section_title('Areas for Further Investigation')
-    pdf.body_text("""1. Deep-dive into district-level patterns within underperforming states
-2. Time-series forecasting for capacity planning
-3. Correlation with socioeconomic indicators for targeted interventions
-4. Investigation of PIN code patterns for urban/rural classification
-5. Seasonal pattern analysis for campaign timing optimization""")
-    
     # Save PDF
     output_path.parent.mkdir(parents=True, exist_ok=True)
     pdf.output(str(output_path))
@@ -581,4 +507,4 @@ update their biometrics as they approach adulthood.""")
     return output_path
 
 if __name__ == "__main__":
-    insights = main()
+    main()

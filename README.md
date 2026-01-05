@@ -13,7 +13,7 @@ This project analyzes three Aadhaar datasets (as of December 31, 2025):
 
 1. **Total Activity**: 160M+ new enrolments, 1.1B+ demographic updates, 490M+ biometric updates processed
 2. **Geographic Concentration**: Top 5 states account for majority of enrolments
-3. **Age Distribution**: Adults (18+) dominate at ~41% of new enrolments
+3. **Age Distribution**: Children (0-5 years) dominate at ~65% of new enrolments
 4. **Youth Transitions**: Significant variation in child-to-adult biometric updates across states
 5. **Anomalies**: Multiple days with unusual activity patterns identified
 

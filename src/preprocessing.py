@@ -3,13 +3,27 @@ import numpy as np
 from typing import Tuple
 
 STATE_NAME_MAP = {
-    'Andaman and Nicobar Islands': 'Andaman & Nicobar',
     'Andaman And Nicobar Islands': 'Andaman & Nicobar',
+    'Andaman and Nicobar Islands': 'Andaman & Nicobar',
+    'Andhra Pradesh': 'Andhra Pradesh',
+    'Andhra pradesh': 'Andhra Pradesh',
+    'Dadra And Nagar Haveli': 'Dadra & Nagar Haveli',
     'Dadra and Nagar Haveli': 'Dadra & Nagar Haveli',
     'Dadra And Nagar Haveli And Daman And Diu': 'Dadra & Nagar Haveli and Daman & Diu',
+    'The Dadra And Nagar Haveli And Daman And Diu': 'Dadra & Nagar Haveli and Daman & Diu',
+    'Daman And Diu': 'Daman & Diu',
     'Daman and Diu': 'Daman & Diu',
     'Jammu And Kashmir': 'Jammu & Kashmir',
     'Jammu and Kashmir': 'Jammu & Kashmir',
+    'Orissa': 'Odisha',
+    'ODISHA': 'Odisha',
+    'Pondicherry': 'Puducherry',
+    'West Bangal': 'West Bengal',
+    'Westbengal': 'West Bengal',
+    'West bengal': 'West Bengal',
+    'WEST BENGAL': 'West Bengal',
+    'WESTBENGAL': 'West Bengal',
+    'West  Bengal': 'West Bengal',
 }
 
 def parse_dates(df: pd.DataFrame, date_col: str = 'date') -> pd.DataFrame:
@@ -28,7 +42,16 @@ def validate_pincode(df: pd.DataFrame, pincode_col: str = 'pincode') -> pd.DataF
 def normalize_state_names(df: pd.DataFrame, state_col: str = 'state') -> pd.DataFrame:
     """Standardize state names to consistent format."""
     df = df.copy()
-    df[state_col] = df[state_col].str.strip().str.title()
+    # Filter out numeric states (bad data)
+    df = df[~df[state_col].astype(str).str.match(r'^\d+$', na=False)]
+    
+    # Capitalize properly and strip
+    df[state_col] = df[state_col].astype(str).str.strip()
+    # Handle specific case-insensitive matches first
+    df[state_col] = df[state_col].replace(STATE_NAME_MAP)
+    # Then title case
+    df[state_col] = df[state_col].str.title()
+    # Apply map again to catch any title-cased variations
     df[state_col] = df[state_col].replace(STATE_NAME_MAP)
     return df
 
