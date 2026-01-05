@@ -31,10 +31,10 @@ AadharHackathon/
 │   ├── data_loader.py                 # Dataset loading utilities
 │   ├── preprocessing.py               # Cleaning and transformation
 │   ├── analysis.py                    # Analysis functions
-│   ├── visualization.py               # Visualization generators
+│   ├── visualization.py               # Visualization functions
 │   └── run_analysis.py                # Main pipeline script
 ├── outputs/
-│   ├── figures/                       # 16 generated visualizations
+│   ├── figures/                       # 16 visualizations
 │   └── report.pdf                     # Comprehensive PDF report
 ├── data/
 │   └── raw/                           # Raw CSV files (not in repo)
@@ -68,8 +68,8 @@ python src/run_analysis.py
 This will:
 1. Load and preprocess all datasets
 2. Run temporal, geographic, demographic, and anomaly analyses
-3. Generate 16 visualizations
-4. Create comprehensive PDF report
+3. Create 16 visualizations
+4. Compile comprehensive PDF report
 
 ### Run Jupyter Notebooks
 
@@ -107,7 +107,7 @@ jupyter notebook notebooks/
 
 ## Visualizations
 
-16 publication-ready visualizations generated:
+16 publication-ready visualizations included:
 - Time series trends (enrolment, demographic, biometric)
 - State comparison bar charts
 - Age distribution pie/bar charts
@@ -129,11 +129,11 @@ jupyter notebook notebooks/
 - **seaborn** - Statistical plots
 - **scipy** - Statistical analysis
 - **scikit-learn** - Anomaly detection
-- **fpdf2** - PDF report generation
+- **fpdf2** - PDF report creation
 
 ## PDF Report
 
-The generated `outputs/report.pdf` includes:
+The `outputs/report.pdf` includes:
 1. Executive Summary
 2. Problem Statement & Approach
 3. Dataset Description

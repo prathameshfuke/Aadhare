@@ -386,7 +386,7 @@ def generate_pdf_report(insights, figures, quality_reports,
     pdf.ln(20)
     pdf.set_font('Helvetica', '', 12)
     pdf.cell(0, 8, f"Data Period: {insights['summary']['date_range']}", 0, 1, 'C')
-    pdf.cell(0, 8, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", 0, 1, 'C')
+    pdf.cell(0, 8, f"Prepared: {datetime.now().strftime('%Y-%m-%d')}", 0, 1, 'C')
     
     # Executive Summary
     pdf.add_page()
