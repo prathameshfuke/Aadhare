@@ -72,6 +72,25 @@ def detect_anomalies_iqr(df: pd.DataFrame, value_col: str,
                                    np.where(df[value_col] > upper_bound, 'high', 'normal'))
     return df
 
+def analyze_anomaly_patterns(df: pd.DataFrame, date_col: str = 'date') -> Dict:
+    """Analyze patterns of detected anomalies."""
+    anomalies = df[df['is_anomaly']].copy()
+    if anomalies.empty:
+        return {}
+    
+    anomalies['day'] = anomalies[date_col].dt.day
+    anomalies['weekday'] = anomalies[date_col].dt.day_name()
+    anomalies['is_month_end'] = anomalies[date_col].dt.is_month_end
+    anomalies['is_month_start'] = anomalies[date_col].dt.is_month_start
+    
+    return {
+        'total_anomalies': len(anomalies),
+        'month_end_count': anomalies['is_month_end'].sum(),
+        'month_start_count': anomalies['is_month_start'].sum(),
+        'day_counts': anomalies['day'].value_counts().to_dict(),
+        'weekday_counts': anomalies['weekday'].value_counts().to_dict()
+    }
+
 def detect_anomalies_zscore(df: pd.DataFrame, value_col: str, 
                             threshold: float = 3.0) -> pd.DataFrame:
     """Detect anomalies using Z-score method."""
@@ -85,6 +104,9 @@ def growth_rate_analysis(df: pd.DataFrame, date_col: str = 'date',
     """Calculate growth rates over different periods."""
     df = df.sort_values(date_col)
     
+    if len(df) == 0:
+        return {}
+
     total_growth = (df[value_col].iloc[-1] - df[value_col].iloc[0]) / df[value_col].iloc[0] * 100 if df[value_col].iloc[0] != 0 else 0
     
     if len(df) >= 7:
@@ -124,9 +146,27 @@ def comparative_state_metrics(enrolment: pd.DataFrame, demographic: pd.DataFrame
     
     merged['demo_to_enrol_ratio'] = merged['demo_updates'] / merged['enrolments'].replace(0, np.nan)
     merged['bio_to_enrol_ratio'] = merged['bio_updates'] / merged['enrolments'].replace(0, np.nan)
+    merged['bio_to_demo_ratio'] = merged['bio_updates'] / merged['demo_updates'].replace(0, np.nan)
     merged['total_activity'] = merged['enrolments'] + merged['demo_updates'] + merged['bio_updates']
     
     return merged.sort_values('total_activity', ascending=False)
+
+def identify_cross_dataset_outliers(df: pd.DataFrame) -> pd.DataFrame:
+    """Identify states with unusual ratios between datasets."""
+    df = df.copy()
+    # High enrolment, low updates
+    df['high_enrol_low_update'] = (
+        (df['enrolments'] > df['enrolments'].quantile(0.75)) & 
+        (df['demo_to_enrol_ratio'] < df['demo_to_enrol_ratio'].quantile(0.25))
+    )
+    return df[df['high_enrol_low_update']]
+
+def district_deep_dive(df: pd.DataFrame, states: List[str]) -> pd.DataFrame:
+    """Analyze district-level performance for specific states."""
+    target_df = df[df['state'].isin(states)]
+    district_stats = target_df.groupby(['state', 'district'])['total_enrolments'].sum().reset_index()
+    district_stats = district_stats.sort_values(['state', 'total_enrolments'])
+    return district_stats
 
 def identify_hotspots(df: pd.DataFrame, value_col: str, 
                       percentile: float = 90) -> pd.DataFrame:
