@@ -68,4 +68,20 @@ Aadhare/
 
 ## License
 
-MIT License
+### Option 3: Docker Deployment (Easy)
+Run the entire application in a container without setting up python environments:
+```bash
+docker-compose up --build
+```
+Access dashboard at `http://localhost:8501`.
+
+## 🛠️ Development
+
+### Running Tests
+To ensure code quality, run the test suite:
+```bash
+pytest tests/
+```
+
+### CI/CD
+This project uses GitHub Actions for Continuous Integration. Every push to `main` triggers the test suite.
