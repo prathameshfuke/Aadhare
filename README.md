@@ -13,12 +13,22 @@
 
 ## 🚀 Quick Start
 
+### Option 1: Interactive Dashboard (Recommended)
+Experience the analysis through our new intelligent dashboard:
 ```bash
-# One-command setup & analysis
+# Setup
 git clone https://github.com/prathameshfuke/Aadhare.git
 cd Aadhare
 python3 -m venv venv && source venv/bin/activate
 pip install -r requirements.txt
+
+# Launch Dashboard
+streamlit run src/app.py
+```
+
+### Option 2: Automated Pipeline
+Generate the static PDF report and all visualizations:
+```bash
 python src/run_analysis.py
 ```
 
@@ -26,11 +36,14 @@ python src/run_analysis.py
 
 ```
 Aadhare/
-├── notebooks/                 # Jupyter notebooks for interactive analysis
 ├── src/                       # Source code modules
-│   ├── analysis.py            # Deep dive analysis logic (anomalies, deep dives)
+│   ├── app.py                 # Streamlit Interactive Dashboard [NEW]
+│   ├── report_generator.py    # Professional PDF Reporting Engine [NEW]
+│   ├── analysis.py            # Deep dive analysis logic
+│   ├── visualization.py       # Premium visualization engine
 │   ├── run_analysis.py        # Main execution pipeline
-│   └── ...                    # Helper modules
+│   └── assets/                # Logos and static assets
+├── notebooks/                 # Jupyter notebooks for interactive analysis
 ├── outputs/
 │   ├── figures/               # 16 publication-ready visualizations
 │   └── report.pdf             # Comprehensive PDF report with embedded code

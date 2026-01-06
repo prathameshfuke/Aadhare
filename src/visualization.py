@@ -6,22 +6,33 @@ from pathlib import Path
 from typing import Optional, Tuple, List
 
 plt.style.use('seaborn-v0_8-whitegrid')
-plt.rcParams['figure.figsize'] = (12, 6)
-plt.rcParams['font.size'] = 11
-plt.rcParams['axes.titlesize'] = 14
-plt.rcParams['axes.labelsize'] = 12
+plt.rcParams['figure.figsize'] = (12, 7)
+plt.rcParams['font.family'] = 'sans-serif'
+plt.rcParams['font.sans-serif'] = ['Arial', 'Liberation Sans', 'DejaVu Sans', 'Bitstream Vera Sans', 'sans-serif']
+plt.rcParams['font.size'] = 12
+plt.rcParams['axes.titlesize'] = 16
+plt.rcParams['axes.titleweight'] = 'bold'
+plt.rcParams['axes.labelsize'] = 13
+plt.rcParams['axes.labelweight'] = 'bold'
+plt.rcParams['axes.spines.top'] = False
+plt.rcParams['axes.spines.right'] = False
+plt.rcParams['figure.dpi'] = 150
+plt.rcParams['savefig.dpi'] = 300
 
+# Premium Color Palette
 COLORS = {
-    'primary': '#2E86AB',
-    'secondary': '#A23B72',
-    'tertiary': '#F18F01',
-    'success': '#2ECC71',
-    'warning': '#F39C12',
-    'danger': '#E74C3C',
-    'neutral': '#95A5A6',
+    'primary': '#0F4C81',      # Classic Blue
+    'secondary': '#53B0AE',    # Teal
+    'tertiary': '#D74E09',     # Burnt Orange
+    'success': '#2E8B57',      # Sea Green
+    'warning': '#F4A261',      # Sandy Brown
+    'danger': '#E76F51',       # Terra Cotta
+    'neutral': '#6C757D',      # Gray
+    'accent': '#8E44AD',       # Purple
+    'background': '#F8F9FA'    # Off-white
 }
 
-AGE_COLORS = ['#3498DB', '#9B59B6', '#2ECC71']
+AGE_COLORS = ['#457B9D', '#E63946', '#A8DADC'] # Muted Blue, Red, Light Blue
 STATE_CMAP = 'viridis'
 
 def save_fig(fig: plt.Figure, filename: str, output_dir: Path) -> Path:
@@ -251,56 +262,86 @@ def create_dashboard(enrolment_trends: pd.DataFrame,
                     comparative: pd.DataFrame,
                     title: str) -> plt.Figure:
     """Create dashboard-style summary visualization."""
-    fig = plt.figure(figsize=(20, 16))
+    fig = plt.figure(figsize=(20, 15), constrained_layout=True)
+    fig.patch.set_facecolor(COLORS['background'])
     
-    gs = fig.add_gridspec(3, 3, hspace=0.3, wspace=0.3)
+    gs = fig.add_gridspec(3, 3)
     
+    # 1. Daily Trends (Top Left - Spans 2 cols)
     ax1 = fig.add_subplot(gs[0, :2])
     ax1.plot(enrolment_trends['date'], enrolment_trends['total'], 
-             alpha=0.4, color=COLORS['primary'])
+             alpha=0.3, color=COLORS['primary'], label='Daily Raw')
     ax1.plot(enrolment_trends['date'], 
              enrolment_trends['total'].rolling(7).mean(),
-             color=COLORS['secondary'], linewidth=2)
-    ax1.set_title('Daily Enrolment Trends', fontweight='bold')
-    ax1.grid(True, alpha=0.3)
+             color=COLORS['primary'], linewidth=2.5, label='7-Day Avg')
+    ax1.set_title('Daily Enrolment Trends', pad=15)
+    ax1.legend(frameon=True)
+    ax1.grid(True, alpha=0.2)
+    ax1.set_facecolor('white')
     
+    # 2. Age Distribution (Top Right)
     ax2 = fig.add_subplot(gs[0, 2])
-    ax2.pie(age_data['total'], labels=age_data['age_group'],
-            autopct='%1.1f%%', colors=AGE_COLORS, explode=[0.02]*3)
-    ax2.set_title('Age Distribution', fontweight='bold')
+    wedges, texts, autotexts = ax2.pie(age_data['total'], labels=age_data['age_group'],
+            autopct='%1.1f%%', colors=AGE_COLORS, explode=[0.05]*3, 
+            pctdistance=0.85, shadow=True)
+    # Draw circle for donut chart
+    centre_circle = plt.Circle((0,0), 0.70, fc='white')
+    ax2.add_artist(centre_circle)
+    ax2.set_title('Age Distribution', pad=15)
     
+    # 3. Top States (Middle - Full Width)
     ax3 = fig.add_subplot(gs[1, :])
-    top_states = state_enrol.nlargest(10, 'total')
-    ax3.barh(top_states['state'], top_states['total'], color=COLORS['primary'])
-    ax3.set_title('Top 10 States by Enrolment', fontweight='bold')
-    ax3.invert_yaxis()
-    ax3.grid(True, alpha=0.3, axis='x')
+    top_states = state_enrol.nlargest(10, 'total').sort_values('total', ascending=True)
+    bars = ax3.barh(top_states['state'], top_states['total'], color=COLORS['secondary'])
+    ax3.set_title('Top 10 States by Enrolment', pad=15)
+    ax3.grid(True, alpha=0.2, axis='x')
+    ax3.set_facecolor('white')
     
+    # Add values to bars
+    max_val = top_states['total'].max()
+    for bar in bars:
+        width = bar.get_width()
+        ax3.text(width + (max_val * 0.01), bar.get_y() + bar.get_height()/2, 
+                 f'{width:,.0f}', 
+                 ha='left', va='center', fontweight='bold', fontsize=9)
+    
+    # 4. Activity Comparison Grouped Bar (Bottom Left - Spans 2 cols)
     ax4 = fig.add_subplot(gs[2, :2])
-    top_comp = comparative.nlargest(10, 'total_activity')
+    top_comp = comparative.nlargest(8, 'total_activity')
     x = np.arange(len(top_comp))
     width = 0.25
-    ax4.bar(x - width, top_comp['enrolments'], width, label='Enrolments')
-    ax4.bar(x, top_comp['demo_updates'], width, label='Demo Updates')
-    ax4.bar(x + width, top_comp['bio_updates'], width, label='Bio Updates')
+    
+    ax4.bar(x - width, top_comp['enrolments'], width, label='Enrolments', color=COLORS['primary'])
+    ax4.bar(x, top_comp['demo_updates'], width, label='Demo Updates', color=COLORS['secondary'])
+    ax4.bar(x + width, top_comp['bio_updates'], width, label='Bio Updates', color=COLORS['tertiary'])
+    
     ax4.set_xticks(x)
     ax4.set_xticklabels(top_comp['state'], rotation=45, ha='right')
-    ax4.set_title('Activity Comparison by State', fontweight='bold')
-    ax4.legend()
-    ax4.grid(True, alpha=0.3, axis='y')
+    ax4.set_title('Activity Comparison by State (Top 8)', pad=15)
+    ax4.legend(frameon=True)
+    ax4.grid(True, alpha=0.2, axis='y')
+    ax4.set_facecolor('white')
     
+    # 5. Overall KPIs (Bottom Right)
     ax5 = fig.add_subplot(gs[2, 2])
+    ax5.axis('off')
+    
     total_enrol = state_enrol['total'].sum()
     total_demo = comparative['demo_updates'].sum()
     total_bio = comparative['bio_updates'].sum()
     
-    ax5.barh(['Enrolments', 'Demo Updates', 'Bio Updates'],
-             [total_enrol, total_demo, total_bio],
-             color=[COLORS['primary'], COLORS['secondary'], COLORS['tertiary']])
-    ax5.set_title('Overall Totals', fontweight='bold')
-    ax5.grid(True, alpha=0.3, axis='x')
+    # Draw Key Metrics as text
+    y_pos = [0.8, 0.5, 0.2]
+    labels = ['Total Enrolments', 'Demo Updates', 'Biometric Updates']
+    values = [total_enrol, total_demo, total_bio]
+    colors = [COLORS['primary'], COLORS['secondary'], COLORS['tertiary']]
     
-    fig.suptitle(title, fontsize=20, fontweight='bold', y=0.98)
+    for y, label, val, col in zip(y_pos, labels, values, colors):
+        ax5.text(0.5, y, label, ha='center', va='center', fontsize=14, color=COLORS['neutral'])
+        ax5.text(0.5, y-0.15, f'{val:,.0f}', ha='center', va='center', 
+                 fontsize=24, fontweight='bold', color=col)
+        
+    fig.suptitle(title, fontsize=24, fontweight='bold', y=1.02, color=COLORS['primary'])
     
     return fig
 
