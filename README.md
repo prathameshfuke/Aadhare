@@ -54,6 +54,9 @@ Aadhare/
 
 - **Temporal Trend Analysis**: Rolling averages, growth rates, seasonal decomposition.
 - **Anomaly Detection**: IQR-based outlier detection with temporal pattern matching (day-of-week/month-end correlation).
+- **AI Integration**:
+    - **Isolation Forest**: Unsupervised anomaly detection for real-time monitoring.
+    - **Random Forest Regressor**: Forecasting daily enrolments based on temporal features.
 - **Geographic Deep Dives**: State and district-level aggregation, hotspot/coldspot identification.
 - **Cross-Dataset Correlation**: Analyzing ratios between enrolments, demographic updates, and biometric updates to find outliers.
 

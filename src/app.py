@@ -101,7 +101,7 @@ def main():
                 enrolment, demographic, biometric = preprocess_all(enrolment_raw, demographic_raw, biometric_raw)
                 
                 # --- Tab Layout ---
-                tab1, tab2, tab3, tab4 = st.tabs(["Dashboard", "Deep Insights", "Data Explorer", "Report Generation"])
+                tab1, tab2, tab3, tab4, tab5 = st.tabs(["Dashboard", "Deep Insights", "Data Explorer", "Predictor (AI)", "Report Generation"])
                 
                 # Run Core Analysis
                 enrol_trends = temporal_trends(enrolment, 'total_enrolments')
@@ -169,8 +169,61 @@ def main():
                     
                     csv = df_show.to_csv(index=False).encode('utf-8')
                     st.download_button("Download Processed Data", csv, f"{dataset.lower()}_processed.csv", "text/csv")
-
+                
                 with tab4:
+                    st.header("🔮 AI Predictor")
+                    st.markdown("Use our trained Machine Learning models to forecast future trends or detect anomalies in manual data.")
+                    
+                    # Load Models (cached)
+                    @st.cache_resource
+                    def load_models():
+                        import joblib
+                        try:
+                            models_path = Path(__file__).parent.parent / "models"
+                            anomaly_model = joblib.load(models_path / "anomaly_model.joblib")
+                            forecast_model = joblib.load(models_path / "forecast_model.joblib")
+                            return anomaly_model, forecast_model
+                        except:
+                            return None, None
+                    
+                    amom_model, fore_model = load_models()
+                    
+                    if not amom_model:
+                        st.warning("⚠️ Models not found. Please train models first using `python src/model_training.py`.")
+                    else:
+                        mode = st.radio("Select Mode", ["Forecasting", "Anomaly Check"])
+                        
+                        if mode == "Forecasting":
+                            st.subheader("Predict Future Enrolments")
+                            pred_date = st.date_input("Select Date", value=pd.to_datetime('today'))
+                            # Need rolling average for prediction - for demo we ask user or use approximate
+                            rolling_7 = st.number_input("Average Daily Enrolments (Last 7 Days)", value=5000)
+                            
+                            if st.button("Forecast"):
+                                # Create feature vector
+                                dt = pd.to_datetime(pred_date)
+                                features = pd.DataFrame([{
+                                    'day_of_week': dt.dayofweek,
+                                    'month': dt.month,
+                                    'year': dt.year,
+                                    'day_of_month': dt.day,
+                                    'is_weekend': 1 if dt.dayofweek >= 5 else 0,
+                                    'rolling_7_mean': rolling_7
+                                }])
+                                pred = fore_model.predict(features)[0]
+                                st.success(f"📈 Predicted Enrolments for {pred_date}: **{int(pred):,}**")
+                                
+                        else:
+                            st.subheader("Check for Anomalies")
+                            check_val = st.number_input("Enter Total Enrolments", value=0)
+                            if st.button("Check"):
+                                status = amom_model.predict([[check_val]])[0]
+                                if status == -1:
+                                    st.error("🚨 **Anomaly Detected!** This value is significantly deviant from the norm.")
+                                else:
+                                    st.success("✅ **Normal.** This value is within expected range.")
+
+                with tab5:
                     st.header("Generate Official Report")
                     st.write("Generate a comprehensive PDF report based on the current analysis.")
                     
